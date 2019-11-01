@@ -23,7 +23,7 @@ void Solution(std::istream &iss, std::ostream &oss) {
         break;
       case POP_FRONT:
         auto flag = queue.TryPop(out_val);
-        if (flag != -1) {
+        if (flag) {
           if (out_val != val) {
             oss << "NO";
             return;
