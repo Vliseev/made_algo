@@ -6,44 +6,49 @@
 template <class T, typename Compare = std::less<T>>
 class SplayTree {
    public:
-    struct TreeNode {
-        explicit TreeNode(const T& value) : val_(value) {
-        }
-        T val_{};
-        TreeNode* left_ = nullptr;
-        TreeNode* right_ = nullptr;
-        TreeNode* parent_ = nullptr;
-        size_t size_ = 1;
-    };
-
     SplayTree() = default;
+
     explicit SplayTree(const T& val);
+    SplayTree(const SplayTree&) = delete;
+    SplayTree(SplayTree&&) = delete;
+    SplayTree& operator=(const SplayTree&) = delete;
+    SplayTree& operator&&(SplayTree&&) = delete;
+    ~SplayTree();
 
     void Insert(const T& value);
+
     bool Find(const T& val) const;
-    SplayTree::TreeNode* Merge(TreeNode* t1, TreeNode* t2);
     void Remove(const T& val);
     T KthNode(size_t k);
 
-    ~SplayTree();
-
    private:
-    TreeNode* root_ = nullptr;
+    struct Node {
+        explicit Node(const T& value) : val_(value) {
+        }
+        T val_{};
+        Node* left_ = nullptr;
+        Node* right_ = nullptr;
+        Node* parent_ = nullptr;
+        size_t size_ = 1;
+    };
+
+    Node* root_ = nullptr;
     Compare cmp_ = Compare();
+    static void DeleteSubtree(Node* node);
 
-    void DeleteSubtree(TreeNode* node);
-    void Splay(TreeNode* pivot);
+    void Splay(Node* pivot);
+    void RightTurn(Node* parent);
 
-    void RightTurn(TreeNode* parent);
-    void LeftTurn(TreeNode* parent);
-    void UpdateSize(TreeNode* node);
+    void LeftTurn(Node* parent);
+    void UpdateSize(Node* node);
+    T KthNode(Node* node, size_t k);
 
-    T KthNode(TreeNode* node, size_t k);
+    SplayTree::Node* Merge(Node* t1, Node* t2);
 };
 
 template <class T, typename Compare>
-void SplayTree<T, Compare>::RightTurn(SplayTree::TreeNode* parent) {
-    SplayTree::TreeNode* node = parent->left_;
+void SplayTree<T, Compare>::RightTurn(Node* parent) {
+    SplayTree::Node* node = parent->left_;
     if (node == nullptr)
         return;
     else {
@@ -66,8 +71,8 @@ void SplayTree<T, Compare>::RightTurn(SplayTree::TreeNode* parent) {
 }
 
 template <class T, typename Compare>
-void SplayTree<T, Compare>::LeftTurn(SplayTree::TreeNode* parent) {
-    TreeNode* node = parent->right_;
+void SplayTree<T, Compare>::LeftTurn(Node* parent) {
+    Node* node = parent->right_;
     if (node == nullptr)
         return;
     else {
@@ -89,7 +94,7 @@ void SplayTree<T, Compare>::LeftTurn(SplayTree::TreeNode* parent) {
 }
 
 template <class T, typename Compare>
-void SplayTree<T, Compare>::Splay(SplayTree::TreeNode* pivot) {
+void SplayTree<T, Compare>::Splay(Node* pivot) {
     while (pivot->parent_ != nullptr) {
         if (pivot == pivot->parent_->left_) {
             if (pivot->parent_->parent_ == nullptr) {
@@ -119,19 +124,24 @@ template <class T, typename Compare>
 bool SplayTree<T, Compare>::Find(const T& val) const {
     if (root_ == nullptr)
         return false;
-    TreeNode* p = root_;
+    Node* p = root_;
+    Node* q = root_;
 
     while (p != nullptr && p->val_ != val) {
-        if (cmp_(val, p->val_))
+        if (cmp_(val, p->val_)) {
+            q = p;
             p = p->left_;
-        else
+        } else {
+            q = p;
             p = p->right_;
+        }
     }
 
     if (p != nullptr) {
         Splay(p);
         return true;
     } else {
+        Splay(q);
         return false;
     }
 }
@@ -139,10 +149,10 @@ bool SplayTree<T, Compare>::Find(const T& val) const {
 template <class T, typename Compare>
 void SplayTree<T, Compare>::Insert(const T& value) {
     if (root_ == nullptr)
-        root_ = new TreeNode(value);
+        root_ = new Node(value);
     else {
-        TreeNode* p = root_;
-        for (TreeNode* q = p; q != nullptr; p = q ? q : p) {
+        Node* p = root_;
+        for (Node* q = p; q != nullptr; p = q ? q : p) {
             ++(q->size_);
             if (cmp_(value, q->val_))
                 q = q->left_;
@@ -151,12 +161,12 @@ void SplayTree<T, Compare>::Insert(const T& value) {
         }
 
         if (cmp_(value, p->val_)) {
-            p->left_ = new TreeNode(value);
+            p->left_ = new Node(value);
             p->left_->parent_ = p;
             Splay(p->left_);
             return;
         } else {
-            p->right_ = new TreeNode(value);
+            p->right_ = new Node(value);
             p->right_->parent_ = p;
             Splay(p->right_);
             return;
@@ -165,9 +175,9 @@ void SplayTree<T, Compare>::Insert(const T& value) {
 }
 
 template <class T, typename Compare>
-typename SplayTree<T, Compare>::TreeNode*
-SplayTree<T, Compare>::Merge(SplayTree::TreeNode* t1, SplayTree::TreeNode* t2) {
-    TreeNode* p_i = t1;
+typename SplayTree<T, Compare>::Node* SplayTree<T, Compare>::Merge(Node* t1,
+                                                                   Node* t2) {
+    Node* p_i = t1;
     if (p_i == nullptr)
         return t2;
     while (p_i->right_) {
@@ -183,8 +193,8 @@ SplayTree<T, Compare>::Merge(SplayTree::TreeNode* t1, SplayTree::TreeNode* t2) {
 }
 
 template <class T, typename Compare>
-void SplayTree<T, Compare>::DeleteSubtree(SplayTree::TreeNode* node) {
-    std::stack<TreeNode*> s;
+void SplayTree<T, Compare>::DeleteSubtree(Node* node) {
+    std::stack<Node*> s;
     s.push(node);
 
     while (!s.empty()) {
@@ -207,7 +217,7 @@ template <class T, typename Compare>
 void SplayTree<T, Compare>::Remove(const T& val) {
     if (root_ == nullptr)
         return;
-    TreeNode* p = root_;
+    Node* p = root_;
 
     while (p != nullptr && p->val_ != val) {
         if (cmp_(val, p->val_))
@@ -229,11 +239,11 @@ void SplayTree<T, Compare>::Remove(const T& val) {
 
 template <class T, typename Compare>
 SplayTree<T, Compare>::SplayTree(const T& val)
-    : root_(new TreeNode(val)), cmp_(Compare()) {
+    : root_(new Node(val)), cmp_(Compare()) {
 }
 
 template <class T, typename Compare>
-void SplayTree<T, Compare>::UpdateSize(SplayTree::TreeNode* node) {
+void SplayTree<T, Compare>::UpdateSize(Node* node) {
     node->size_ = 1;
     if (node->left_)
         node->size_ += node->left_->size_;
@@ -249,7 +259,7 @@ T SplayTree<T, Compare>::KthNode(size_t k) {
 }
 
 template <class T, typename Compare>
-T SplayTree<T, Compare>::KthNode(TreeNode* node, size_t k) {
+T SplayTree<T, Compare>::KthNode(Node* node, size_t k) {
     size_t r = node->left_ ? node->left_->size_ : 0;
     if (k == r) {
         int val = node->val_;
