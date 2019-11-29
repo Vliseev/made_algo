@@ -1,11 +1,10 @@
 #include <iostream>
 #include <sstream>
-#include <unordered_set>
 #include "htblv1.h"
 
 void Solution(std::istream &iss) {
     std::string s;
-    Hashtable htbl;
+    Hashtable<std::string, HornerHash<R1, M1>> htbl;
 
     size_t counter = 0;
 
@@ -49,7 +48,9 @@ void Solution(std::istream &iss) {
 }
 
 int main() {
-    Solution(std::cin);
+    std::unordered_set<int, int>
+
+        Solution(std::cin);
 
     return 0;
 }

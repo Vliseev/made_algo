@@ -15,13 +15,9 @@
 коллизий используйте двойное хеширование.*/
 
 namespace {
-inline std::size_t UnalignedLoad(const char *p) {
-    std::size_t result;
-    memcpy(&result, p, sizeof(result));
-    return result;
-}
+
+const size_t R1 = 117;
 const uint64_t M1 = 1893692287;
-const uint64_t M2 = 1784935583;
 
 template <size_t R, size_t M>
 uint64_t ByteArrHash(const void *ptr, size_t len) {
@@ -35,8 +31,6 @@ uint64_t ByteArrHash(const void *ptr, size_t len) {
 
     return hash_value;
 }
-const size_t R1 = 117;
-const size_t R2 = 113;
 
 }    // namespace
 
@@ -47,19 +41,19 @@ struct HornerHash {
     }
 };
 
-static size_t count_h = 0;
-
+template <typename T, class Hasher = std::hash<T>, class Eq = std::equal_to<T>>
 class Hashtable {
     enum class NodeState { IS_USE, FREE, DELETED };
 
     struct Node {
-        std::string val_{};
+        T val_{};
         NodeState state_ = NodeState::FREE;
     };
 
     size_t size_;
     std::vector<Node> nodes_;
-    HornerHash<R1, M1> hasher;
+    Hasher hasher_;
+
     void Rehash();
     size_t NextHash(size_t h1, size_t h2);
 
@@ -72,9 +66,16 @@ class Hashtable {
     std::pair<size_t, size_t> GetWhoHash(const std::string &s);
 
     Hashtable() : size_(0), nodes_(8){};
+    Hashtable(const Hashtable &other) = default;
+    Hashtable(Hashtable &&other) noexcept = default;
+    Hashtable &operator=(const Hashtable &other) = default;
+    Hashtable &operator=(Hashtable &&other) noexcept = default;
+
+    ~Hashtable() = default;
 };
 
-bool Hashtable::Erase(const std::string &s) {
+template <typename T, class Hasher, class Eq>
+bool Hashtable<T, Hasher, Eq>::Erase(const std::string &s) {
     for (auto [idx, h2] = GetWhoHash(s);; idx = NextHash(idx, h2)) {
         if (nodes_[idx].state_ == NodeState::FREE) {
             return false;
@@ -85,7 +86,9 @@ bool Hashtable::Erase(const std::string &s) {
         }
     }
 }
-void Hashtable::Insert(const std::string &s) {
+
+template <typename T, class Hasher, class Eq>
+void Hashtable<T, Hasher, Eq>::Insert(const std::string &s) {
     if ((size_ + 1) * 4 > nodes_.size() * 3)
         Rehash();
 
@@ -99,8 +102,8 @@ void Hashtable::Insert(const std::string &s) {
         }
     }
 }
-
-bool Hashtable::Find(const std::string &s) {
+template <typename T, class Hasher, class Eq>
+bool Hashtable<T, Hasher, Eq>::Find(const std::string &s) {
     for (auto [idx, h2] = GetWhoHash(s);; idx = NextHash(idx, h2)) {
         if (nodes_[idx].state_ == NodeState::FREE) {
             return false;
@@ -110,7 +113,9 @@ bool Hashtable::Find(const std::string &s) {
         }
     }
 }
-void Hashtable::Rehash() {
+
+template <typename T, class Hasher, class Eq>
+void Hashtable<T, Hasher, Eq>::Rehash() {
     std::vector<Node> tmp_node(nodes_.size() * 2);
     std::swap(tmp_node, nodes_);
 
@@ -119,11 +124,16 @@ void Hashtable::Rehash() {
             Insert(i.val_);
     }
 }
-std::pair<size_t, size_t> Hashtable::GetWhoHash(const std::string &s) {
+
+template <typename T, class Hasher, class Eq>
+std::pair<size_t, size_t>
+Hashtable<T, Hasher, Eq>::GetWhoHash(const std::string &s) {
     const size_t mask = nodes_.size() - 1;
-    return std::pair(hasher(s) & mask, (2 * hasher(s) + 1) & mask);
+    return std::pair(hasher_(s) & mask, (2 * hasher_(s) + 1) & mask);
 }
-size_t Hashtable::NextHash(size_t h1, size_t h2) {
+
+template <typename T, class Hasher, class Eq>
+size_t Hashtable<T, Hasher, Eq>::NextHash(size_t h1, size_t h2) {
     const size_t mask = nodes_.size() - 1;
     return (h1 + h2) & mask;
 }
