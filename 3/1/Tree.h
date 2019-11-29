@@ -6,33 +6,45 @@
 #include <iostream>
 #include <stack>
 
-template <class T>
+template <class T, class Less = std::less<T>>
 class Tree {
- public:
-    struct TreeNode {
-        explicit TreeNode(const T& value) : val_(value) {}
-        T val_{};
-        TreeNode* left_ = nullptr;
-        TreeNode* right_ = nullptr;
-    };
+   public:
+    Tree() = default;
+    explicit Tree(const T& val);
+
+    Tree(const Tree& other) = delete;
+    Tree(Tree&& other) = delete;
+
+    Tree& operator=(const Tree& other) = delete;
+    Tree& operator=(Tree&& other) = delete;
 
     ~Tree();
-    explicit Tree(const T& val);
+
+    template <class UnaryFunction>
+    void InordTraversal(UnaryFunction f);
     void Insert(const T& value);
-    Tree() = default;
-    void PrintInorder(std::ostream& oss);
 
- private:
-    TreeNode* root_ = nullptr;
-    void DeleteSubtree(TreeNode* node);
-    void PrintSubTree(TreeNode* node, std::ostream& oss);
+   private:
+    struct Node {
+        explicit Node(const T& value) : val_(value) {
+        }
+        T val_{};
+        Node* left_ = nullptr;
+        Node* right_ = nullptr;
+    };
+    Node* root_ = nullptr;
+    void DeleteSubtree(Node* node);
+
+    template <class UnaryFunction>
+    void InordTraversal(Node* node, UnaryFunction f);
 };
-template <class T>
-Tree<T>::Tree(const T& val) : root_(new TreeNode(val)) {}
+template <class T, class Less>
+Tree<T, Less>::Tree(const T& val) : root_(new Node(val)) {
+}
 
-template <class T>
-void Tree<T>::DeleteSubtree(Tree::TreeNode* node) {
-    std::stack<TreeNode*> s;
+template <class T, class Less>
+void Tree<T, Less>::DeleteSubtree(Tree::Node* node) {
+    std::stack<Node*> s;
     s.push(node);
 
     while (!s.empty()) {
@@ -46,34 +58,40 @@ void Tree<T>::DeleteSubtree(Tree::TreeNode* node) {
     }
 }
 
-template <class T>
-Tree<T>::~Tree() {
+template <class T, class Less>
+Tree<T, Less>::~Tree() {
     if (root_)
         DeleteSubtree(root_);
 }
-template <class T>
-void Tree<T>::Insert(const T& value) {
+template <class T, class Less>
+void Tree<T, Less>::Insert(const T& value) {
     if (root_ == nullptr) {
-        root_ = new TreeNode(value);
+        root_ = new Node(value);
     } else {
-        TreeNode* p = root_;
-        for (TreeNode* q = p; q != nullptr; p = q ? q : p) {
-            if (value <= q->val_)
+        Node* p = root_;
+        for (Node* q = p; q != nullptr; p = q ? q : p) {
+            if (Less()(value, q->val_))
                 q = q->left_;
-            else if (value > q->val_)
+            else
                 q = q->right_;
         }
 
-        if (value < p->val_)
-            p->left_ = new TreeNode(value);
+        if (Less()(value, p->val_))
+            p->left_ = new Node(value);
         else
-            p->right_ = new TreeNode(value);
+            p->right_ = new Node(value);
     }
 }
-template <class T>
-void Tree<T>::PrintSubTree(Tree::TreeNode* node, std::ostream& oss) {
-    std::stack<TreeNode*> s;
-    TreeNode* cur_node = node;
+template <class T, class Less>
+template <class UnaryFunction>
+void Tree<T, Less>::InordTraversal(UnaryFunction f) {
+    InordTraversal(root_, f);
+}
+template <class T, class Less>
+template <class UnaryFunction>
+void Tree<T, Less>::InordTraversal(Tree::Node* node, UnaryFunction f) {
+    std::stack<Node*> s;
+    Node* cur_node = node;
 
     while (cur_node != nullptr || !s.empty()) {
         while (cur_node != nullptr) {
@@ -83,12 +101,8 @@ void Tree<T>::PrintSubTree(Tree::TreeNode* node, std::ostream& oss) {
         cur_node = s.top();
         s.pop();
 
-        oss << cur_node->val_ << " ";
+        f(cur_node->val_);
 
         cur_node = cur_node->right_;
     }
-}
-template <class T>
-void Tree<T>::PrintInorder(std::ostream& oss) {
-    PrintSubTree(root_, oss);
 }

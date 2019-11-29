@@ -13,7 +13,7 @@ void Solution(std::istream& iss, std::ostream& oss) {
         iss >> val;
         t.Insert(val);
     }
-    t.PrintInorder(oss);
+    t.InordTraversal([&oss](int v) { oss << v << " "; });
 }
 
 void Test1() {
