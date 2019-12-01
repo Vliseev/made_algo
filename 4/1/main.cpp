@@ -1,5 +1,4 @@
 #include <iostream>
-#include <sstream>
 #include "htblv1.h"
 
 void Solution(std::istream &iss) {
@@ -48,9 +47,7 @@ void Solution(std::istream &iss) {
 }
 
 int main() {
-    std::unordered_set<int, int>
-
-        Solution(std::cin);
+    Solution(std::cin);
 
     return 0;
 }
