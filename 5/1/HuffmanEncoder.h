@@ -9,6 +9,7 @@
 #include <vector>
 #include "Stream.h"
 
+static const int num_lit = 256;
 namespace {
 constexpr int MAX_BITS = 16;
 }
@@ -18,7 +19,7 @@ class HuffmanEncoder {
     struct EncodeTable {
         std::vector<int> lengths_;
         std::vector<uint32_t> codes_;
-    } table;
+    } table_;
 
     struct BitStreamWriter {
         static constexpr int acc_size_ = 16;
@@ -28,60 +29,32 @@ class HuffmanEncoder {
 
         explicit BitStreamWriter(IOutputStream& ostream) : ostream_(ostream){};
 
-        void PutByte(std::uint8_t c) {
-            ostream_.Write(c);
-        }
+        void PutByte(std::uint8_t c);
 
-        void PutShort(std::uint16_t w) {
-            PutByte(w >> 8);
-            PutByte(w & 0xff);
-        }
+        void PutShort(std::uint16_t w);
 
-        void Flush() {
-            PutShort(bit_buf_);
-            bit_buf_ = 0;
-            cur_size_ = 0;
-        }
+        void PutWord(std::uint32_t w);
 
-        void send_bits(uint32_t value, int length) {
-            /* if (length + cur_size_ > acc_size_) {
-                 bit_buf_ |= (std::uint16_t)value << cur_size_;
-                 PutShort(bit_buf_);
-                 bit_buf_ = (std::uint16_t)value >> (acc_size_ - cur_size_);
-                 cur_size_ += length - acc_size_;
-             } else {
-                 bit_buf_ |= (std::uint16_t)(value) << cur_size_;
-                 cur_size_ += length;
-             }*/
+        void Flush();
 
-            if (length + cur_size_ > acc_size_) {
-                bit_buf_ |=
-                    (std::uint16_t)value >> (length - (acc_size_ - cur_size_));
-                PutShort(bit_buf_);
-                bit_buf_ = (std::uint16_t)value
-                           << (2 * acc_size_ - cur_size_ - length);
-                cur_size_ = length - (acc_size_ - cur_size_);
-            } else {
-                bit_buf_ |= (std::uint16_t)(value)
-                            << (acc_size_ - cur_size_ - length);
-                cur_size_ += length;
-            }
-        }
-    };
+        void SendBits(uint32_t value, int length);
+    } bit_ostream_;
 
-    static uint32_t BitReverse(uint32_t code, int len) {
-        uint32_t res = 0;
-        do {
-            res |= code & 1;
-            code >>= 1;
-            res <<= 1;
-        } while (--len > 0);
-        return res >> 1;
-    }
+    std::vector<uint8_t> data_;
+
+    IInputStream& istream_;
+    HuffmanEncoder(IInputStream& iss, IOutputStream& oss)
+        : istream_(iss), bit_ostream_(oss){};
+
+    static size_t GetCompLen(const EncodeTable&,
+                             const std::array<size_t, num_lit>&);
+    void WriteHeader(const EncodeTable&, uint32_t);
 
    public:
-    void BuildTree(std::vector<size_t>);
-    void BuildTable(std::vector<int>& lens);
+    void BuildTree(std::array<size_t, num_lit>& counter);
+    void BuildTable();
+
+    void Compress();
 };
 
 class HuffmanDecoder {
@@ -92,6 +65,29 @@ class HuffmanDecoder {
         std::array<uint32_t, MAX_BITS> decode_len_;
         std::array<uint32_t, MAX_BITS> decode_pos_;
     };
+
+    struct BitStreamReader {
+        int in_bit_{};    // Current bit position in the current byte.
+
+        uint8_t w1{};
+        uint8_t w2{};
+        uint8_t w3{};
+
+        IInputStream& istream_;
+        std::vector<uint8_t> InBuf;
+
+        explicit BitStreamReader(IInputStream& istream);
+        void Addbits(uint bits);
+        uint Getbits();
+    } bit_istream_;
+    IOutputStream& ostream;
     DecodeTable table;
+
+    HuffmanDecoder(IInputStream& iss, IOutputStream& oss)
+        : bit_istream_(iss), ostream(oss){};
+
+    std::vector<int> ReadTable();
     void BuildTable(std::vector<int>& lens);
+    size_t ReadHeader();
+    void Decompress();
 };
