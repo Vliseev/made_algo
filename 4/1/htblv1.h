@@ -60,7 +60,7 @@ class Hashtable {
    public:
     enum class Status { OK, FAIL };
 
-    void Insert(const std::string &s);
+    bool Insert(const std::string &s);
     bool Erase(const std::string &s);
     bool Find(const std::string &s);
     std::pair<size_t, size_t> GetWhoHash(const std::string &s);
@@ -88,7 +88,10 @@ bool Hashtable<T, Hasher, Eq>::Erase(const std::string &s) {
 }
 
 template <typename T, class Hasher, class Eq>
-void Hashtable<T, Hasher, Eq>::Insert(const std::string &s) {
+bool Hashtable<T, Hasher, Eq>::Insert(const std::string &s) {
+    if (Find(s))
+        return false;
+
     if ((size_ + 1) * 4 > nodes_.size() * 3)
         Rehash();
 
@@ -98,7 +101,7 @@ void Hashtable<T, Hasher, Eq>::Insert(const std::string &s) {
             nodes_[idx].val_ = s;
             nodes_[idx].state_ = NodeState ::IS_USE;
             size_++;
-            return;
+            return true;
         }
     }
 }

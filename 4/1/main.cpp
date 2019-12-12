@@ -12,8 +12,7 @@ void Solution(std::istream &iss) {
         counter++;
         switch (command) {
             case '+': {
-                if (!htbl.Find(s)) {
-                    htbl.Insert(s);
+                if (htbl.Insert(s)) {
                     std::cout << "OK"
                               << "\n";
                 } else {
