@@ -36,7 +36,11 @@ std::vector<int> FindPat(const std::string &s, const std::string &pat) {
 }
 
 int main() {
-    for (auto pos : FindPat("abacababa", "aba")) {
+
+    std::string s,t;
+
+    std::cin>>t>>s;
+    for (auto pos : FindPat(s,t)) {
         std::cout << pos << " ";
     }
 
