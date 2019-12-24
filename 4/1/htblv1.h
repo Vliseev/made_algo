@@ -89,19 +89,28 @@ bool Hashtable<T, Hasher, Eq>::Erase(const std::string &s) {
 
 template <typename T, class Hasher, class Eq>
 bool Hashtable<T, Hasher, Eq>::Insert(const std::string &s) {
-    if (Find(s))
-        return false;
-
     if ((size_ + 1) * 4 > nodes_.size() * 3)
         Rehash();
 
+    size_t first_del = std::numeric_limits<size_t>::max();
     for (auto [idx, h2] = GetWhoHash(s);; idx = NextHash(idx, h2)) {
-        if (nodes_[idx].state_ == NodeState::FREE ||
-            nodes_[idx].state_ == NodeState::DELETED) {
-            nodes_[idx].val_ = s;
-            nodes_[idx].state_ = NodeState ::IS_USE;
+        if (nodes_[idx].state_ == NodeState::FREE) {
+            if (first_del != std::numeric_limits<size_t>::max()) {
+                nodes_[first_del].val_ = s;
+                nodes_[first_del].state_ = NodeState ::IS_USE;
+            } else {
+                nodes_[idx].val_ = s;
+                nodes_[idx].state_ = NodeState ::IS_USE;
+            }
             size_++;
             return true;
+        } else if (nodes_[idx].state_ == NodeState::FREE) {
+            first_del = first_del == std::numeric_limits<size_t>::max()
+                            ? idx
+                            : first_del;
+        } else if (nodes_[idx].state_ == NodeState::IS_USE &&
+                   nodes_[idx].val_ == s) {
+            return false;
         }
     }
 }
