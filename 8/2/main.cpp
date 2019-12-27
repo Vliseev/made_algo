@@ -9,64 +9,70 @@
 class AhoCorasick {
    public:
     struct Vertex {
-        using shVert = std::shared_ptr<Vertex>;
-        using weakVert = std::weak_ptr<Vertex>;
+        using ShVert = std::shared_ptr<Vertex>;
+        using WeakVert = std::weak_ptr<Vertex>;
 
-        using node_t = std::pair<char, shVert>;
-        using w_node_t = std::pair<char, weakVert>;
+        using NodeT = std::pair<char, ShVert>;
+        using WNodeT = std::pair<char, WeakVert>;
 
-        std::vector<node_t> children_{};
-        bool leaf_ = false;
-        weakVert parent_{};
-        char par_cg_{};
-        weakVert link_{};
+        std::vector<NodeT> children_{};
+        uint32_t leaf_ = std::numeric_limits<uint32_t>::max();
+        WeakVert link_{};
 
         Vertex() = default;
 
-        std::vector<node_t>::iterator FindKey(char c);
+        std::vector<NodeT>::iterator FindKey(char c);
         bool Count(char c);
     };
-    using shVert = Vertex::shVert;
-    using weakVert = Vertex::weakVert;
+    using ShVert = Vertex::ShVert;
+    using WeakVert = Vertex::WeakVert;
+    using PatternT = std::pair<size_t, std::string>;
 
-    shVert root_;
+    ShVert root_;
+    std::vector<PatternT> patterns_{};
+
     AhoCorasick();
-    void AddString(std::string_view s);
+    AhoCorasick(AhoCorasick&& other) noexcept = default;
+    AhoCorasick& operator=(AhoCorasick&& other) noexcept = default;
+    AhoCorasick(const AhoCorasick&) = default;
+    AhoCorasick& operator=(const AhoCorasick&) = default;
+    ~AhoCorasick() = default;
+
+    void AddString(std::string_view s, size_t);
     void InitFSM();
-    shVert Go(const shVert& v, char c);
-    shVert GetLink(const shVert& v);
+    ShVert Go(const ShVert& v, char c);
+    ShVert GetLink(const ShVert& v);
 };
-std::vector<AhoCorasick::Vertex::node_t>::iterator AhoCorasick::Vertex::FindKey(
-    char c) {
+std::vector<AhoCorasick::Vertex::NodeT>::iterator
+AhoCorasick::Vertex::FindKey(char c) {
     return std::find_if(children_.begin(), children_.end(),
-                        [c](Vertex::node_t& val) { return val.first == c; });
+                        [c](Vertex::NodeT& val) { return val.first == c; });
 }
 bool AhoCorasick::Vertex::Count(char c) {
     return std::find_if(children_.begin(), children_.end(),
-                        [c](Vertex::node_t& val) { return val.first == c; }) !=
+                        [c](Vertex::NodeT& val) { return val.first == c; }) !=
            children_.end();
 }
 AhoCorasick::AhoCorasick() {
     root_ = std::make_shared<Vertex>();
 }
-void AhoCorasick::AddString(std::string_view s) {
-    Vertex::shVert v = root_;
+void AhoCorasick::AddString(std::string_view s, size_t pos) {
+    Vertex::ShVert v = root_;
     for (auto& c : s) {
         auto it = v->FindKey(c);
         if (it == v->children_.end()) {
             auto child = std::make_shared<Vertex>();
-            child->parent_ = v;
-            child->par_cg_ = c;
             v->children_.emplace_back(c, std::move(child));
             v = v->children_.back().second;
         } else {
             v = it->second;
         }
     }
-    v->leaf_ = true;
+    patterns_.emplace_back(pos, s);
+    v->leaf_ = patterns_.size() - 1;
 }
 void AhoCorasick::InitFSM() {
-    std::queue<Vertex::shVert> queue;
+    std::queue<Vertex::ShVert> queue;
 
     for (const auto& v : root_->children_) {
         queue.push(v.second);
@@ -91,49 +97,28 @@ void AhoCorasick::InitFSM() {
         }
     }
 }
-AhoCorasick::shVert AhoCorasick::Go(const AhoCorasick::shVert& v, char c) {
+AhoCorasick::ShVert AhoCorasick::Go(const AhoCorasick::ShVert& v, char c) {
     auto it = v->FindKey(c);
     return it != v->children_.end() ? it->second : root_;
 }
-AhoCorasick::shVert AhoCorasick::GetLink(const AhoCorasick::shVert& v) {
+AhoCorasick::ShVert AhoCorasick::GetLink(const AhoCorasick::ShVert& v) {
     return v->link_.lock();
 }
 
-void PrintPat(AhoCorasick::shVert q, const AhoCorasick::shVert& root) {
-    std::string out;
-
-    while (q != root) {
-        out += q->par_cg_;
-        q = q->parent_.lock();
-    }
-    std::reverse(out.begin(), out.end());
-    std::cout << out << "\n";
-}
-
-void Out(AhoCorasick::shVert q, const AhoCorasick::shVert& root) {
+void Out(AhoCorasick::ShVert q, const AhoCorasick& ak, std::vector<int>& C,
+         int j) {
     auto tmp_ptr = std::move(q);
-    while (tmp_ptr && tmp_ptr != root) {
-        if (tmp_ptr->leaf_)
-            PrintPat(tmp_ptr, root);
+    while (tmp_ptr && tmp_ptr != ak.root_) {
+        if (tmp_ptr->leaf_ != std::numeric_limits<uint32_t>::max())
+            C[j - ak.patterns_[tmp_ptr->leaf_].first -
+              ak.patterns_[tmp_ptr->leaf_].second.size()+1]++;
         tmp_ptr = tmp_ptr->link_.lock();
     }
 }
 
-std::pair<std::string_view, std::optional<std::string_view>> SplitTwoStrict(
-    std::string_view s, char delimiter) {
-    size_t pos = s.find(delimiter);
-    if (pos == s.npos) {
-        return {s, std::nullopt};
-    } else {
-        size_t num_del = 1;
-        while (pos + num_del < s.npos && s[pos + num_del] == delimiter)
-            num_del++;
-        return {s.substr(0, pos), s.substr(pos + num_del)};
-    }
-}
-
-std::vector<std::string_view> Split(std::string_view s, char delimiter) {
-    std::vector<std::string_view> parts;
+std::vector<std::pair<size_t, std::string_view>> Split(std::string_view s,
+                                                       char delimiter) {
+    std::vector<std::pair<size_t, std::string_view>> parts;
     size_t cur_pos = 0, beg_pos;
     if (s.empty()) {
         return parts;
@@ -145,7 +130,7 @@ std::vector<std::string_view> Split(std::string_view s, char delimiter) {
 
     while (cur_pos < s.size()) {
         if (s[cur_pos] == delimiter) {
-            parts.push_back(s.substr(beg_pos, cur_pos - beg_pos));
+            parts.emplace_back(beg_pos, s.substr(beg_pos, cur_pos - beg_pos));
             while (cur_pos < s.size() && s[cur_pos] == delimiter) {
                 cur_pos++;
             }
@@ -157,29 +142,49 @@ std::vector<std::string_view> Split(std::string_view s, char delimiter) {
     return parts;
 }
 
-int main() {
-    AhoCorasick ak;
-    std::string pat = "?a?qwe???teq??sad???aw?";
-    auto tok = Split(pat, '?');
+void Solution(AhoCorasick& ak, std::string_view s) {
+    auto q = ak.root_;
+    std::vector<int> C(s.size(), 0);
 
-    for (auto v : tok) {
-        std::cout << v << "\n";
-//        ak.AddString(v);
+    int j = 0;
+    for (char c : s) {
+        while (q != ak.root_ && ak.Go(q, c) == ak.root_) {
+            q = ak.GetLink(q);
+        }
+        q = ak.Go(q, c);
+        Out(q, ak, C, j);
+        j++;
     }
 
-//    ak.InitFSM();
-    //
-    //    std::string s = "abae??abaek??asdqqqwertyabae";
-    //    //    std::string s = "qqwertyabae";
-    //
-    //    AhoCorasick::shVert q = ak.root_;
-    //
-    //    for (char c : s) {
-    //        while (q != ak.root_ && ak.Go(q, c) == ak.root_) {
-    //            q = ak.GetLink(q);
-    //        }
-    //        q = ak.Go(q, c);
-    //        Out(q, ak.root_);
-    //    }
+    auto num_pat = ak.patterns_.size();
+    for (int i = 0; i < C.size(); i++) {
+        if (C[i] == num_pat)
+            std::cout << i << "\n";
+    }
+}
+
+AhoCorasick BuildAk(std::string_view pat) {
+    AhoCorasick ak;
+    auto tok = Split(pat, '?');
+
+    for (auto& [idx, v] : tok) {
+        ak.AddString(v, idx);
+    }
+    ak.InitFSM();
+
+    return ak;
+}
+
+int main() {
+    AhoCorasick ak;
+    std::string pat = "aa?aa?";
+    std::string_view s = "eaakaaaab";
+
+    //    std::string pat = "ab??ab";
+//    std::string_view s = "xabvccababcax";
+
+    ak = BuildAk(pat);
+    Solution(ak, s);
+
     return 0;
 }
