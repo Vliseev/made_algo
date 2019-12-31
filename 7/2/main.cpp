@@ -5,19 +5,19 @@
 #include <vector>
 #include <fstream>
 
-class UnFind {
+class DSU {
     std::vector<int> ids_;
     std::vector<int> rank_;
 
     int Find(int x);
 
- public:
-    explicit UnFind(int n);
+   public:
+    explicit DSU(int n);
     bool Find(int x, int y);
     void Union(int x, int y);
 };
 
-UnFind::UnFind(int n) {
+DSU::DSU(int n) {
     ids_.resize(n);
     rank_.resize(n);
     for (int i = 0; i < n; ++i) {
@@ -26,7 +26,7 @@ UnFind::UnFind(int n) {
     }
 }
 
-int UnFind::Find(int x) {
+int DSU::Find(int x) {
     std::vector<int> path{x};
     int root = ids_[x];
 
@@ -41,11 +41,11 @@ int UnFind::Find(int x) {
     return root;
 }
 
-bool UnFind::Find(int x, int y) {
+bool DSU::Find(int x, int y) {
     return Find(x) == Find(y);
 }
 
-void UnFind::Union(int x, int y) {
+void DSU::Union(int x, int y) {
     int i = Find(x);
     int j = Find(y);
     if (i == j)
@@ -60,33 +60,38 @@ void UnFind::Union(int x, int y) {
 }
 
 struct Graph {
- public:
+   public:
     struct Edge {
         int u_;
         int v_;
         int w_;
-        Edge(int u, int v, int w) : u_(u), v_(v), w_(w) {}
+        Edge(int u, int v, int w) : u_(u), v_(v), w_(w) {
+        }
         Edge() : u_(0), v_(0), w_(0){};
     };
+
+   private:
     std::vector<Edge> edges_{};
     int n_vertex_;
 
+   public:
     explicit Graph(int n) : n_vertex_(n){};
     Graph(const Graph& other) = default;
     Graph(Graph&& other) noexcept = default;
     Graph& operator=(const Graph& other) = default;
     Graph& operator=(Graph&& other) noexcept = default;
 
+    int GetNVertex() const {
+        return n_vertex_;
+    }
+    std::vector<Edge> CopyEdges() const {
+        return edges_;
+    }
     void AddEdge(int u, int v, int w);
-    void SortEdges();
 };
 
 void Graph::AddEdge(int u, int v, int w) {
     edges_.emplace_back(u, v, w);
-}
-void Graph::SortEdges() {
-    std::sort(std::begin(edges_), std::end(edges_),
-              [](const Edge& e1, const Edge& e2) { return e1.w_ < e2.w_; });
 }
 
 struct MstHelper {
@@ -97,19 +102,25 @@ struct MstHelper {
     void FindMst();
 };
 void MstHelper::FindMst() {
-    UnFind uf(g_.n_vertex_);
+    DSU uf(g_.GetNVertex());
 
-    for (int i = 0, v = 1; i < g_.edges_.size() && v < g_.n_vertex_; ++i) {
-        if (!uf.Find(g_.edges_[i].u_, g_.edges_[i].v_)) {
-            uf.Union(g_.edges_[i].u_, g_.edges_[i].v_);
-            min_w_ += g_.edges_[i].w_;
+    auto edges = g_.CopyEdges();
+
+    std::sort(std::begin(edges), std::end(edges),
+              [](const Graph::Edge& e1, const Graph::Edge& e2) {
+                  return e1.w_ < e2.w_;
+              });
+
+    for (int i = 0, v = 1; i < edges.size() && v < g_.GetNVertex(); ++i) {
+        if (!uf.Find(edges[i].u_, edges[i].v_)) {
+            uf.Union(edges[i].u_, edges[i].v_);
+            min_w_ += edges[i].w_;
             v++;
         }
     }
 }
 
 int WeightMst(Graph& g) {
-    g.SortEdges();
     MstHelper mst(g);
     mst.FindMst();
 
