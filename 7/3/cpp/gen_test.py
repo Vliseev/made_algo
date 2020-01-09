@@ -1,9 +1,9 @@
+import csv
 import io
-import subprocess
-
 import numpy as np
-import scipy.stats as sts
 import os
+import scipy.stats as sts
+import subprocess
 
 
 def gen(N):
@@ -14,8 +14,9 @@ def gen(N):
     return graph
 
 
-def get_err(N, n_iter):
+def get_err(N, n_iter, csvwriter):
     err_list = []
+
 
     for _ in range(n_iter):
         g = gen(N)
@@ -34,14 +35,18 @@ def get_err(N, n_iter):
         err = abs(ans2 - ans1)
         err_list.append(err)
 
-    print(f"N={N}"
-          f" mean_abs_err={np.mean(err_list):.4f}"
-          f" quantile_abs_err={np.quantile(err_list, 0.5):.4f}"
-          f" max_abs_err={max(err_list):.4f}"
-          f" min_abs_err={min(err_list):.4f}"
-          f" rmse={np.sqrt(np.mean(np.array(err_list)**2))}")
+    csvwriter.writerow([N,
+                        f"{np.mean(err_list):.4f}",
+                        f"{np.quantile(err_list, 0.5):.4f}",
+                        f" {max(err_list):.4f}",
+                        f" {min(err_list):.4f}",
+                        f" {np.sqrt(np.mean(np.array(err_list) ** 2)):.4f}"])
+
 
 
 np.random.seed(123)
-for N in range(4, 12):
-    get_err(N, 30)
+with open('report.csv', 'w', newline='') as csvfile:
+    csvwriter = csv.writer(csvfile)
+    csvwriter.writerow(['N', 'mean_abs_err', 'quantile_abs_err', 'max_abs_err', 'min_abs_err', ' rmse'])
+    for N in range(4, 12):
+        get_err(N, 30, csvwriter)
