@@ -48,5 +48,5 @@ np.random.seed(123)
 with open('report.csv', 'w', newline='') as csvfile:
     csvwriter = csv.writer(csvfile)
     csvwriter.writerow(['N', 'mean_abs_err', 'quantile_abs_err', 'max_abs_err', 'min_abs_err', ' rmse'])
-    for N in range(4, 12):
+    for N in range(4, 13):
         get_err(N, 30, csvwriter)
