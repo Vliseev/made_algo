@@ -6,8 +6,10 @@
 #include <string>
 #include <utility>
 
-class AhoCorasick {
-   public:
+std::vector<std::pair<size_t, std::string_view>> Split(std::string_view s,
+                                                       char delimiter);
+
+class PatternSearcher {
     struct Vertex {
         using ShVert = std::shared_ptr<Vertex>;
         using WeakVert = std::weak_ptr<Vertex>;
@@ -24,50 +26,60 @@ class AhoCorasick {
         std::vector<NodeT>::iterator FindKey(char c);
         bool Count(char c);
     };
+    void AddString(std::string_view s, size_t);
+    void InitFSM();
+
+   public:
     using ShVert = Vertex::ShVert;
     using WeakVert = Vertex::WeakVert;
 
+    PatternSearcher(std::string_view pat, char delimeter);
+    PatternSearcher(PatternSearcher&& other) noexcept = default;
+    PatternSearcher& operator=(PatternSearcher&& other) noexcept = default;
+    PatternSearcher(const PatternSearcher&) = default;
+    PatternSearcher& operator=(const PatternSearcher&) = default;
+    ~PatternSearcher() = default;
 
-    AhoCorasick();
-    AhoCorasick(AhoCorasick&& other) noexcept = default;
-    AhoCorasick& operator=(AhoCorasick&& other) noexcept = default;
-    AhoCorasick(const AhoCorasick&) = default;
-    AhoCorasick& operator=(const AhoCorasick&) = default;
-    ~AhoCorasick() = default;
+    std::vector<int> FindPos(std::string_view s);
 
-    void AddString(std::string_view s, size_t);
-    void InitFSM();
-    ShVert Go(const ShVert& v, char c);
-    ShVert GetLink(const ShVert& v);
-
-   private:
-    ShVert root_;
-
-   public:
-    [[nodiscard]] const ShVert& GetRoot() const {
+    const ShVert& GetRoot() const {
         return root_;
     }
-    [[nodiscard]] int GetNumPat() const {
+    int GetNumPat() const {
         return num_pat;
     }
 
    private:
+    ShVert Go(const ShVert& v, char c);
+    ShVert GetLink(const ShVert& v);
+
+    ShVert root_;
     int num_pat{};
+    size_t pat_size_;
 };
-std::vector<AhoCorasick::Vertex::NodeT>::iterator
-AhoCorasick::Vertex::FindKey(char c) {
+
+std::vector<PatternSearcher::Vertex::NodeT>::iterator
+PatternSearcher::Vertex::FindKey(char c) {
     return std::find_if(children_.begin(), children_.end(),
                         [c](Vertex::NodeT& val) { return val.first == c; });
 }
-bool AhoCorasick::Vertex::Count(char c) {
+bool PatternSearcher::Vertex::Count(char c) {
     return std::find_if(children_.begin(), children_.end(),
                         [c](Vertex::NodeT& val) { return val.first == c; }) !=
            children_.end();
 }
-AhoCorasick::AhoCorasick() {
+PatternSearcher::PatternSearcher(std::string_view pat, char delimeter) {
     root_ = std::make_shared<Vertex>();
+
+    auto tok = Split(pat, delimeter);
+
+    for (const auto& [idx, v] : tok) {
+        AddString(v, idx);
+    }
+    InitFSM();
+    pat_size_ = pat.size();
 }
-void AhoCorasick::AddString(std::string_view s, size_t l) {
+void PatternSearcher::AddString(std::string_view s, size_t l) {
     Vertex::ShVert v = root_;
     for (auto& c : s) {
         auto it = v->FindKey(c);
@@ -82,7 +94,7 @@ void AhoCorasick::AddString(std::string_view s, size_t l) {
     v->out_l_.push_back(l);
     num_pat++;
 }
-void AhoCorasick::InitFSM() {
+void PatternSearcher::InitFSM() {
     std::queue<Vertex::ShVert> queue;
 
     for (const auto& v : root_->children_) {
@@ -94,7 +106,7 @@ void AhoCorasick::InitFSM() {
         auto rnode = queue.front();
         queue.pop();
 
-        for (auto [k, node] : rnode->children_) {
+        for (const auto& [k, node] : rnode->children_) {
             queue.push(node);
             auto fnode = rnode->f_.lock();
             while (fnode && !fnode->Count(k)) {
@@ -108,15 +120,38 @@ void AhoCorasick::InitFSM() {
         }
     }
 }
-AhoCorasick::ShVert AhoCorasick::Go(const AhoCorasick::ShVert& v, char c) {
+PatternSearcher::ShVert PatternSearcher::Go(const PatternSearcher::ShVert& v,
+                                            char c) {
     auto it = v->FindKey(c);
     return it != v->children_.end() ? it->second : root_;
 }
-AhoCorasick::ShVert AhoCorasick::GetLink(const AhoCorasick::ShVert& v) {
+PatternSearcher::ShVert
+PatternSearcher::GetLink(const PatternSearcher::ShVert& v) {
     return v->f_.lock();
 }
+std::vector<int> PatternSearcher::FindPos(std::string_view s) {
+    std::vector<int> pos{};
 
+    auto node = GetRoot();
+    std::vector<int> C(s.size(), 0);
 
+    for (int i = 0; i < s.size(); i++) {
+        while (node != GetRoot() && !node->Count(s[i]))
+            node = node->f_.lock();
+        node = Go(node, s[i]);
+
+        for (auto l : node->out_l_)
+            if (i - l + 1 >= 0)
+                C[i - l + 1] += 1;
+    }
+
+    for (int i = 0; i < C.size(); i++) {
+        if (C[i] == GetNumPat() && i + pat_size_ <= s.size())
+            pos.push_back(i);
+    }
+
+    return pos;
+}
 std::vector<std::pair<size_t, std::string_view>> Split(std::string_view s,
                                                        char delimiter) {
     std::vector<std::pair<size_t, std::string_view>> parts;
@@ -145,48 +180,19 @@ std::vector<std::pair<size_t, std::string_view>> Split(std::string_view s,
     return parts;
 }
 
-void Solution(AhoCorasick& ac, std::string_view s, std::string_view pat) {
-    auto node = ac.GetRoot();
-    std::vector<int> C(s.size(), 0);
-
-    for (int i = 0; i < s.size(); i++) {
-        while (node != ac.GetRoot() && !node->Count(s[i]))
-            node = node->f_.lock();
-        node = ac.Go(node, s[i]);
-
-        for (auto l : node->out_l_)
-            if (i - l + 1 >= 0)
-                C[i - l + 1] += 1;
-    }
-
-    for (int i = 0; i < C.size(); i++) {
-        if (C[i] == ac.GetNumPat() && i + pat.size() <= s.size())
-            std::cout << i << "\n";
-    }
-}
-
-AhoCorasick BuildAC(std::string_view pat, char delimeter) {
-    AhoCorasick ac;
-    auto tok = Split(pat, delimeter);
-
-    for (auto& [idx, v] : tok) {
-        ac.AddString(v, idx);
-    }
-    ac.InitFSM();
-
-    return ac;
-}
-
 int main() {
-    AhoCorasick ac;
     const char kDelimeter = '?';
     std::string pat;
     std::string s;
 
     std::cin >> pat >> s;
 
-    ac = BuildAC(pat, kDelimeter);
-    Solution(ac, s, pat);
+    PatternSearcher ac(pat, kDelimeter);
+    auto pos = ac.FindPos(s);
+
+    for (auto p : pos) {
+        std::cout << p << "\n";
+    }
 
     return 0;
 }
